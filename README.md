@@ -17,6 +17,7 @@ After adding the selected card to the deck, the user must (*slowly*) backspace o
 **mwsload** is a perl script which takes short, quick user input to create a deck listing file (text) which can be copied and loaded directly from the clipboard into a MWS deck using `Tools->Paste Deck from Clipboard` 
 
 #### Simple, Quick Input:
+
 The first alphanumeric characters of the first word (all lower-case) of a MTG card's name and looks up the corresponding card(s) in the masterbase.
 
 `card name: bosh`
@@ -62,6 +63,7 @@ deleted previous entry: 1 Test of Faith
 ```
 
 ##### Multiple Matches
+
 Sometimes more than one card will match a particular entry:
 
 `card name: sol`
@@ -77,6 +79,27 @@ Returns a sorted list of all matching cards:
 
 The desired card can be selected by number. Aren't you glad you didn't have to enter a certain Swamp King's lengthy moniker?
 
+#### Adding Different Card Quantities
+
+mwsload defaults to adding a single card at a time. This is because most huge decks are singleton. 
+This setting can be changed by entering the desired default:
+
+```
+card name: 4
+default card quantity set : x4
+```
+
+It is also possible to add quantities on-the-fly as card keywords are entered. The quantity will revert to the default setting after these cards are added:
+
+``` 
+card name: quick3
+quick x3
+
+card found: Quick Sliver
+
+added 3 Quick Sliver to deck
+```
+
 #### Optimized Masterbase
 
 The MTG masterbase as of 7/2013 (pre-M14) is provided in CSV form. This can be exported from MWS using `File->Export Deck/Base`
@@ -89,12 +112,13 @@ It is important to note that in this mode the *entire* card name must be entered
 
 
 #### TODO:
-- specify card quantities (currently singleton mode)
+
 - load additional card info, do something with it
 - Tk GUI
 
 
 #### LICENSE
+
 This package is free software; you can redistribute it and/or modify it under
 the following terms:
 
