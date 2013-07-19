@@ -6,7 +6,7 @@ use Storable;
 use Getopt::Long;
 #use Tk;
 
-my ($skip_master, $rebuild_master, $quantity_mode );
+my ($skip_master, $rebuild_master);
 GetOptions( 's|skip' => \$skip_master,
 			'r|rebuild' => \$rebuild_master
 		  );
@@ -26,7 +26,6 @@ sub main {
 	else {
 		say "\nskipping masterbase, enter full cardnames (case insensitive)";
 	}
-	
 	
 	my $quant = 1;
 	my $num_cards = 0;
@@ -113,7 +112,10 @@ sub main {
 				say "$input x$tmp_quant";
 				$num_cards += $tmp_quant;
 			}
-			
+			else {
+				$num_cards += $quant;
+			}
+			$input = lc $input;
 			$input = sprintf("%u $input", defined $tmp_quant ? $tmp_quant : $quant);
 			$input =~ s/ (\w)/' '.uc($1)/ge;
 			$input =~ s/(-|\/)(\w)/$1.uc($2)/ge;
@@ -211,11 +213,11 @@ sub init_file {
 							goto DECKDONE
 						}
 					},
-			'default' => sub { say "error: please select 'a', 'o', or 'c'" },
 		);
 		while (1) {
 			print "\ndeck file exists - (a)ppend, (o)verwrite, (c)ancel: ";
 			$input = check4opt(input(), \%opts_hash);	
+			say "error: please select 'a', 'o', or 'c'";
 		}
 		DECKDONE:
 	}
