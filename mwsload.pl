@@ -1,31 +1,115 @@
 #! perl -w
 
 use strict;
+use feature 'say';
 use Storable;
+use Getopt::Long;
+#use Tk;
 
-my $skip_master = 0;
-my $rebuild_master = 1;
-# TODO: specify number of card as well
-my $quantity_mode = 0;
+my ($skip_master, $rebuild_master, $quantity_mode );
+GetOptions( 's|skip' => \$skip_master,
+			'r|rebuild' => \$rebuild_master,
+			'q|quants' => \$quantity_mode);
 
-print "Welcome to the MWS deck clipboard creator!\n";
-print "'q' to exit, 'd' to delete previous, 'w' write to file\n";
+main();
 
-print "\ndeck name: ";
-my $input = <>;
-chomp $input;
-exit if $input eq 'q';
-my $deck_file = "$input.deck";
 
-init_file($deck_file);
+sub main {
+	say "Welcome to the MWS deck clipboard creator!";
+	
+	my $deck_file = ${init_deck()};
+	
+	my %master;
+	if (!$skip_master) {
+		%master = %{masterbase($rebuild_master)};
+	}
+	else {
+		say "\nskipping masterbase, enter full cardnames (case insensitive)";
+	}
+	
+	my @output = ("\n");
+	my %opts_hash = (
+		d => sub {
+				my $deleted = pop @output;
+				say "\ndeleted previous entry: $deleted";
+				goto LOAD;
+			},
+		w => sub {
+				print "\nwriting cards in memory to deck file... ";
+				write_deck(\@output, '>>', $deck_file);
+				my $num_cards = scalar @output - 1;
+				@output = ("\n");
+				say 'done';
+				say "[$num_cards] card(s) written";
+				goto LOAD;
+			},
+		q => sub {
+				goto SAVEQUIT;
+			},
+	);
+	
+	while(1) {
+		LOAD:
+		my $input = '';
+		print "\ncard name: ";
+		$input = input();
+		check4opt($input, \%opts_hash);
+		if (!$skip_master) {
+			if (scalar( split ' ', $input ) > 1 || $input =~ m/\W/) {
+				say "\n[masterbase completion mode - enabled]";
+				say "enter *only* the first word or up to the first non-alpha in the cardname";
+				next;
+			}
+		
+			if ($master{uc $input}) {
+				my @match = sort @{$master{uc $input}};
+				if (scalar @match == 1) {
+					say "\ncard found: $match[0]";
+					$input = "1 $match[0]";
+				}
+				else {
+					say "multiple cards found";
+					for (my $i = 0; $i < scalar @match; $i++) {
+						my $cur = $match[$i];
+						say "\t$i: $cur";
+					}
+					until ($input =~ m/^\d+$/ && $input < scalar @match && $input > -1 ) {
+						print "\n[0-${\(scalar @match - 1)}]: ";
+						$input = input();
+					}
+					$input = "1 $match[$input]";
+				}
+			}
+			else {
+				say "card not found, try again";
+				next;
+			}
+		}
+		else {
+			$input = "1 $input";
+			$input =~ s/ (\w)/' '.uc($1)/ge;
+			$input =~ s/(-|\/)(\w)/$1.uc($2)/ge;
+			$input =~ s/ (And|The|Of|Into)/' '.lc($1)/ge;
+		}
+		push @output, $input;
+		say "\nadded $input to deck";
+	}
+	SAVEQUIT:
+	print "\nsaving and exiting...";
+	write_deck(\@output, '>>', $deck_file);
+	say "\ndeck file: $deck_file";
+	say "[${\(scalar @output - 1)}] card(s) written";
+}
 
-my %master;
-if (!$skip_master) {
+sub masterbase {
+	my $rebuild_master = shift;
+	my %master;
 	if ($rebuild_master) {
 		print "\n[rebuild] serializing new masterbase file... ";
 		open (my $master_fh, '<', 'Master_new.csv');
 		while (<$master_fh>) {
 			next unless m/^"\S+/;
+			# TODO: load extra fields for... something
 			#chomp;
 			#my ($name, $edition, $rarity, $color, $cost, $PT, $type, $text, $flavor) = split "\t", $_;
 			my ($name) = split ';', $_;
@@ -50,116 +134,62 @@ if (!$skip_master) {
 		}
 		close $master_fh;
 		store \%master, 'masterbase.store';
-		print "done\n";
+		say 'done';
 	}
 	else {
 		print "\nloading masterbase for autocompletion... ";
 		%master = %{retrieve('masterbase.store')};
-		print "done\n";
+		say 'done';
 	}
-}
-else {
-	print "\nskipping masterbase, enter full cardnames (case insensitive)\n";
+	return \%master;
 }
 
-my @output = ("\n");
-while(1) {
-	print "\ncard name: ";
-	$input = <>;
+sub input {
+	my $input = <>;
 	chomp $input;
-	if ($input eq 'q') {
-		print "\nsaving and exiting...";
-		last;
-	}
-	elsif ($input eq 'd') {
-		my $deleted = pop @output;
-		print "\ndeleted previous entry: $deleted\n";
-	}
-	elsif ($input eq 'w') {
-		print "\nwriting cards in memory to deck file... ";
-		write_deck(\@output, '>>', $deck_file);
-		my $num_cards = scalar @output - 1;
-		@output = ("\n");
-		print "done\n";
-		print "[$num_cards] cards were written\n";
-	}
-	else {
-		if (!$skip_master) {
-			if (scalar( split ' ', $input ) > 1 || $input =~ m/\W/) {
-				print "\n[masterbase completion mode - enabled]\n";
-				print "enter *only* the first word or up to the first non-alpha in the cardname\n";
-				next;
-			}
-		
-			if ($master{uc $input}) {
-				my @match = sort @{$master{uc $input}};
-				if (scalar @match == 1) {
-					print "\ncard found: $match[0]\n";
-					$input = "1 $match[0]";
-				}
-				else {
-					print "multiple cards found\n";
-					for (my $i = 0; $i < scalar @match; $i++) {
-						my $cur = $match[$i];
-						print "\t$i: $cur\n";
-					}
-					print "\n";
-					until ($input =~ m/^\d+$/ && $input < scalar @match && $input > -1 ) {
-						print "[0-${\(scalar @match - 1)}]: ";
-						$input = <>;
-						chomp $input;
-					}
-					$input = "1 $match[$input]";
-				}
-			}
-			else {
-				print "card not found, try again\n";
-				next;
-			}
-		}
-		else {
-			$input = "1 $input";
-			$input =~ s/ (\w)/' '.uc($1)/ge;
-			$input =~ s/(-|\/)(\w)/$1.uc($2)/ge;
-			$input =~ s/ (And|The|Of|Into)/' '.lc($1)/ge;
-		}
-		push @output, $input;
-		print "\nadded $input to deck\n";
-	}
+	return $input;
 }
-write_deck(\@output, '>>', $deck_file);
-print "\ndeck file: $deck_file\n";
-print "[${\(scalar @output - 1)}] cards were written\n";
 
+sub check4opt {
+	my ($input, $opts_href) = @_;
+	return $input if length($input) != 1;
+	exit if $input =~ m/Q|c/;
+	
+	$opts_href->{$input}->() 
+			if defined $opts_href->{$input} && ref $opts_href->{$input} eq 'CODE';
+		
+}
 
-sub init_file { 
+sub init_deck {
+	say "'Q' to exit, 'd' to delete previous, 'w' write to file";
+	print "\ndeck name: ";
+	my $deck_file = check4opt(input()) . '.deck';
+	init_file($deck_file);
+	return \$deck_file;
+}
+
+sub init_file {
 	my $deck_file = shift;
 	my $input = '';
 	if (-f $deck_file) {
+		my %opts_hash = (
+			a =>	sub { say "\nappending to existing deck file"; goto DECKDONE },		
+			o =>	sub { 
+						print "\nold file will be clobbered, continue? (y/N): ";
+						$input = input();
+						if ($input =~ m/^y$/i) {
+							open (my $deck_fh, '>', $deck_file);
+							close $deck_fh;
+							goto DECKDONE
+						}
+					},
+			'default' => sub { say "error: please select 'a', 'o', or 'c'" },
+		);
 		while (1) {
 			print "\ndeck file exists - (a)ppend, (o)verwrite, (c)ancel: ";
-			$input = <>;
-			chomp $input;
-			if ($input eq 'a') {
-				last;
-			}
-			elsif ($input eq 'o') {
-				print "\nold file will be clobbered, continue? (y/N): ";
-				$input = <>;
-				chomp $input;
-				if ($input =~ m/^y$/i) {
-					open (my $deck_fh, '>', $deck_file);
-					close $deck_fh;
-					last;
-				}
-			}
-			elsif ($input eq 'c') {
-				exit;
-			}
-			else {
-				print "error: please select 'a', 'o', or 'c'\n";
-			}
+			$input = check4opt(input(), \%opts_hash);	
 		}
+		DECKDONE:
 	}
 }
 
